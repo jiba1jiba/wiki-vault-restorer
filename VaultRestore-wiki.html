@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VaultRestore — вики</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2433; --muted: #5b6577; --line: #dfe3ea;
+    --card: #f5f7fa; --accent: #1f7a4d; --code-bg: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181f; --fg: #e6e9ef; --muted: #9aa4b5; --line: #2b323e;
+      --card: #1b212b; --accent: #4fc38a; --code-bg: #222a36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 2rem; }
+  header p { margin: 0; color: var(--muted); }
+  nav {
+    margin: 24px 0; padding: 12px 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  nav a { color: var(--accent); text-decoration: none; margin-right: 14px; white-space: nowrap; }
+  nav a:hover { text-decoration: underline; }
+  section { margin-top: 40px; }
+  h2 { font-size: 1.4rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  code {
+    background: var(--code-bg); padding: 1px 6px; border-radius: 5px;
+    font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--card); }
+  .note {
+    background: var(--card); border-left: 4px solid var(--accent);
+    padding: 10px 14px; border-radius: 6px; margin: 14px 0;
+  }
+  dt { font-weight: 600; margin-top: 14px; }
+  dd { margin: 4px 0 0; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>VaultRestore</h1>
+  <p>Плагин для Paper и Purpur 26.1.2: восстановление хранилищ (vault) в Trial Chamber с настраиваемым таймером.</p>
+</header>
+
+<nav>
+  <a href="#overview">Обзор</a>
+  <a href="#install">Установка и сборка</a>
+  <a href="#how">Как работает</a>
+  <a href="#menu">Меню</a>
+  <a href="#commands">Команды и конфиг</a>
+  <a href="#faq">Вопросы</a>
+</nav>
+
+<section id="overview">
+  <h2>Обзор</h2>
+  <p>После того как игрок открыл хранилище ключом, плагин через заданное число секунд снова даёт ему такую возможность. Над хранилищем всё это время висит надпись с оставшимся временем, а когда время выходит, надпись просто пропадает.</p>
+  <ul>
+    <li><b>Хранилища:</b> и обычные, и зловещие (ominous).</li>
+    <li><b>Таймер:</b> задаётся в секундах через меню в игре или командой, хранится в <code>config.yml</code>.</li>
+    <li><b>Надпись:</b> видна только тому игроку, чей это таймер, и только рядом с хранилищем (до 48 блоков).</li>
+    <li><b>Версия:</b> Paper или Purpur 26.1.2, Java 25. Плагин использует только API Paper.</li>
+  </ul>
+  <div class="note">Код написан по документации API Paper, но ещё не собирался и не проверялся на живом сервере. Если при сборке или на сервере что-то не работает, пришлите текст ошибки.</div>
+</section>
+
+<section id="install">
+  <h2>Установка и сборка</h2>
+  <p>Готового jar нет, плагин собирается из исходников (<code>VaultRestore-source.zip</code>).</p>
+  <ol>
+    <li>Установите JDK 25, например Temurin.</li>
+    <li>Распакуйте архив и в папке проекта выполните <code>gradle build</code>.</li>
+    <li>Положите <code>build/libs/VaultRestore-1.0.0.jar</code> в папку <code>plugins/</code> сервера.</li>
+    <li>Перезапустите сервер. Файл <code>plugins/VaultRestore/config.yml</code> создастся при первом запуске.</li>
+  </ol>
+  <p>Зависимость в <code>build.gradle.kts</code>: <code>io.papermc.paper:paper-api:26.1.2.build.+</code> из репозитория <code>https://repo.papermc.io/repository/maven-public/</code>.</p>
+</section>
+
+<section id="how">
+  <h2>Как это работает</h2>
+  <p>Таймер запускается отдельно для каждой пары «игрок + хранилище», а не для всего хранилища сразу.</p>
+  <ol>
+    <li>Игрок кликает правой кнопкой по хранилищу.</li>
+    <li>Через 2 тика плагин проверяет, записало ли хранилище игрока в список получивших награду. Если да, запоминается момент открытия, и над хранилищем появляется надпись «Восстановление: 12:34».</li>
+    <li>Раз в секунду плагин обновляет надписи и проверяет таймеры. Когда время вышло, игрок удаляется из списка получивших награду, а надпись исчезает.</li>
+  </ol>
+  <ul>
+    <li><b>Неудачный клик</b> (не тот ключ, хранилище уже открыто игроком) таймер не запускает.</li>
+    <li><b>Надпись</b> показывается, пока игрок онлайн, находится в том же мире в пределах 48 блоков и чанк загружен. Если игрок ушёл далеко или вышел, надпись убирается, а таймер продолжает идти.</li>
+    <li><b>Формат времени:</b> <code>М:СС</code>, при часах <code>Ч:ММ:СС</code>, при суточных значениях дни, часы, минуты.</li>
+    <li><b>Выключенный плагин:</b> при <code>enabled: false</code> новые таймеры не создаются, старые не срабатывают, надписи убираются.</li>
+    <li><b>Незагруженный мир или чанк:</b> запись ждёт загрузки и только потом восстанавливает хранилище.</li>
+    <li><b>Разрушенное хранилище:</b> запись удаляется.</li>
+    <li><b>Перезапуск сервера:</b> таймеры сохраняются в <code>plugins/VaultRestore/data.yml</code> (раз в 30 секунд и при выключении), отсчёт идёт по реальному времени. Надписи на диск не пишутся и появляются заново.</li>
+    <li><b>Смена таймера:</b> новое значение действует и для уже запущенных таймеров.</li>
+  </ul>
+</section>
+
+<section id="menu">
+  <h2>Меню настройки</h2>
+  <p>Открывается командой <code>/vaultrestore</code>, доступно только игрокам с правом <code>vaultrestore.admin</code>. Любое изменение сразу сохраняется в <code>config.yml</code>.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Кнопка</th><th>Действие</th></tr></thead>
+    <tbody>
+      <tr><td>Красные блоки: -1000, -100, -10, -1 сек</td><td>Уменьшают таймер на указанное число секунд</td></tr>
+      <tr><td>Часы в центре</td><td>Показывают текущий таймер в секундах и в днях, часах, минутах</td></tr>
+      <tr><td>Зелёные блоки: +1, +10, +100, +1000 сек</td><td>Увеличивают таймер на указанное число секунд</td></tr>
+      <tr><td>Краситель</td><td>Включает или выключает восстановление</td></tr>
+      <tr><td>Табличка</td><td>Включает или выключает надпись над хранилищем</td></tr>
+      <tr><td>Барьер</td><td>Сбрасывает таймер на 1800 секунд</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Таймер ограничен диапазоном от 1 секунды до 31 536 000 секунд (один год). Предметы из меню забрать нельзя.</p>
+</section>
+
+<section id="commands">
+  <h2>Команды и конфиг</h2>
+  <p>Основная команда <code>/vaultrestore</code> (алиас <code>/vrestore</code>). Без аргументов открывает меню. Все подкоманды требуют права <code>vaultrestore.admin</code>, по умолчанию оно есть у операторов.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Команда</th><th>Действие</th></tr></thead>
+    <tbody>
+      <tr><td><code>/vaultrestore menu</code></td><td>Открыть меню (только для игроков)</td></tr>
+      <tr><td><code>/vaultrestore set &lt;секунды&gt;</code></td><td>Задать таймер числом, значение приводится к диапазону 1–31 536 000</td></tr>
+      <tr><td><code>/vaultrestore toggle</code></td><td>Включить или выключить восстановление</td></tr>
+      <tr><td><code>/vaultrestore status</code></td><td>Показать таймер, состояние и число ожидающих записей</td></tr>
+      <tr><td><code>/vaultrestore reload</code></td><td>Перечитать <code>config.yml</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Файл <code>plugins/VaultRestore/config.yml</code>:</p>
+<pre><code># Через сколько секунд хранилище снова станет доступно игроку, который его открыл
+delay-seconds: 1800
+# Включено ли восстановление
+enabled: true
+# Показывать над хранилищем надпись с оставшимся временем (видна только игроку, чей это таймер)
+show-timer: true</code></pre>
+  <p>Файл <code>data.yml</code> в той же папке служебный: в нём хранятся запущенные таймеры, вручную его править не нужно.</p>
+</section>
+
+<section id="faq">
+  <h2>Частые вопросы и ограничения</h2>
+  <dl>
+    <dt>Восстанавливается ли хранилище для всех игроков сразу?</dt>
+    <dd>Нет. Плагин убирает из списка только того игрока, чей таймер истёк. Остальные получают доступ в свой срок.</dd>
+
+    <dt>Видят ли надпись другие игроки?</dt>
+    <dd>Нет. Надпись создаётся невидимой для всех и показывается только владельцу таймера, у каждого игрока своя.</dd>
+
+    <dt>Что происходит с надписью, когда время вышло?</dt>
+    <dd>Она удаляется. Хранилище становится доступным игроку, и над ним ничего не остаётся.</dd>
+
+    <dt>Что с хранилищами, которые открыли до установки плагина?</dt>
+    <dd>Плагин их не знает: таймер запускается только по клику игрока при включённом плагине. Такие хранилища не восстановятся.</dd>
+
+    <dt>Восстанавливает ли плагин генераторы (trial spawners)?</dt>
+    <dd>Нет, только хранилища. У спавнеров своя механика перезарядки.</dd>
+
+    <dt>Считается ли время, пока чанк выгружен?</dt>
+    <dd>Да, отсчёт идёт по реальному времени. Если срок истёк, восстановление произойдёт после загрузки чанка.</dd>
+
+    <dt>Работает ли плагин на Folia?</dt>
+    <dd>Нет, он использует обычный планировщик Bukkit и рассчитан на Paper и Purpur.</dd>
+  </dl>
+</section>
+
+</div>
+</body>
+</html>
